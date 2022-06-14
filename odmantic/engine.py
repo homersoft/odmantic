@@ -19,6 +19,7 @@ from typing import (
 )
 
 import pymongo
+from pydantic.utils import lenient_issubclass
 from pymongo import MongoClient
 from pymongo.client_session import ClientSession
 from pymongo.collection import Collection
@@ -163,19 +164,28 @@ class BaseEngine:
     def __init__(
         self,
         client: Union["AsyncIOMotorClient", "MongoClient"],
-        database: str = "test",
+        database: Union[str, Database] = "test",
     ):
         # https://docs.mongodb.com/manual/reference/limits/#naming-restrictions
-        forbidden_characters = _FORBIDDEN_DATABASE_CHARACTERS.intersection(
-            set(database)
-        )
-        if len(forbidden_characters) > 0:
-            raise ValueError(
-                f"database name cannot contain: {' '.join(forbidden_characters)}"
+        if isinstance(database, str):
+            forbidden_characters = _FORBIDDEN_DATABASE_CHARACTERS.intersection(
+                set(database)
             )
+            if len(forbidden_characters) > 0:
+                raise ValueError(
+                    f"database name cannot contain: {' '.join(forbidden_characters)}"
+                )
         self.client = client
-        self.database_name = database
-        self.database = client[self.database_name]
+
+        if isinstance(database, str):
+            self.database = client[database]
+        elif isinstance(database, Database):
+            self.database = database
+        else:
+            raise ValueError(
+                "database must either be a string or a pymongo.database.Database "
+                "instance"
+            )
 
     @staticmethod
     def _build_query(*queries: Union[QueryExpression, Dict, bool]) -> QueryExpression:
