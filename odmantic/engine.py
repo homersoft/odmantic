@@ -25,6 +25,7 @@ from motor.motor_asyncio import (
     AsyncIOMotorCursor,
 )
 from pydantic.utils import lenient_issubclass
+from pymongo.database import Database
 
 from odmantic.exceptions import DocumentNotFoundError
 from odmantic.field import FieldProxy, ODMReference
@@ -89,7 +90,11 @@ class AIOEngine:
     in an asynchronous way using motor.
     """
 
-    def __init__(self, motor_client: AsyncIOMotorClient = None, database: str = "test"):
+    def __init__(
+        self,
+        motor_client: AsyncIOMotorClient = None,
+        database: Union[str, Database] = "test",
+    ):
         """Engine constructor.
 
         Args:
@@ -102,18 +107,28 @@ class AIOEngine:
         -->
         """
         # https://docs.mongodb.com/manual/reference/limits/#naming-restrictions
-        forbidden_characters = _FORBIDDEN_DATABASE_CHARACTERS.intersection(
-            set(database)
-        )
-        if len(forbidden_characters) > 0:
-            raise ValueError(
-                f"database name cannot contain: {' '.join(forbidden_characters)}"
+        if isinstance(database, str):
+            forbidden_characters = _FORBIDDEN_DATABASE_CHARACTERS.intersection(
+                set(database)
             )
+            if len(forbidden_characters) > 0:
+                raise ValueError(
+                    f"database name cannot contain: {' '.join(forbidden_characters)}"
+                )
+
         if motor_client is None:
             motor_client = AsyncIOMotorClient()
         self.client = motor_client
-        self.database_name = database
-        self.database = motor_client[self.database_name]
+
+        if isinstance(database, str):
+            self.database = motor_client[database]
+        elif isinstance(database, Database):
+            self.database = database
+        else:
+            raise ValueError(
+                "database mus be either a string or a pymongo.database.Database "
+                "instance"
+            )
 
     def get_collection(self, model: Type[ModelType]) -> AsyncIOMotorCollection:
         """Get the motor collection associated to a Model.
