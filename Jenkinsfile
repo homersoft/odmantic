@@ -3,7 +3,7 @@
 // service to your git repository.
 
 
-@Library('JenkinsMain@2.19.13')_
+@Library('JenkinsMain@2.19.15')_
 
 pipelinePythonSCA(
     agentLabel: 'docker',
