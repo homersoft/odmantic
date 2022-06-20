@@ -441,6 +441,20 @@ def test_model_copy_field_modified_on_primary_field_change(deep: bool):
     assert {"id", "f0", "f1", "f2"} == copied.__fields_modified__
 
 
+def test_model_copy_embedded_models_fields_can_still_be_set_after_deep_copy():
+    class E(EmbeddedModel):
+        f: int
+
+    class M(Model):
+        e: E
+
+    instance = M(e=E(f=1))
+    copied = instance.copy(deep=True)
+    copied.e.f = 2
+
+    assert copied != instance
+
+
 INITIAL_FIRST_NAME, INITIAL_LAST_NAME = "INITIAL_FIRST_NAME", "INITIAL_LAST_NAME"
 UPDATED_NAME = "UPDATED_NAME"
 

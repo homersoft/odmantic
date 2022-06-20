@@ -542,6 +542,12 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
         args = [id_arg] + args
         return args
 
+    def __recursively_mark_all_fields_as_modified(self: BaseT) -> None:
+        object.__setattr__(self, "__fields_modified__", set(self.__fields__))
+        for name, value in self.__fields__.items():
+            if issubclass(value.type_, _BaseODMModel):
+                getattr(self, name).__recursively_mark_all_fields_as_modified()
+
     def copy(
         self: BaseT,
         *,
@@ -575,7 +581,9 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
         copied = super().copy(
             include=include, exclude=exclude, update=update, deep=deep  # type: ignore
         )
-        copied._post_copy_update()
+        object.__setattr__(copied, "__fields_modified__", set(copied.__fields__))
+        if deep:
+            copied.__recursively_mark_all_fields_as_modified()
         return copied
 
     def _post_copy_update(self: BaseT) -> None:
