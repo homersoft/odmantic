@@ -6,6 +6,7 @@ import uuid
 import warnings
 from abc import ABCMeta
 from collections.abc import Callable as abcCallable
+from contextlib import suppress
 from types import FunctionType
 from typing import (
     TYPE_CHECKING,
@@ -544,8 +545,8 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
 
     def __recursively_mark_all_fields_as_modified(self: BaseT) -> None:
         object.__setattr__(self, "__fields_modified__", set(self.__fields__))
-        for name, value in self.__fields__.items():
-            if issubclass(value.type_, _BaseODMModel):
+        for name in self.__fields__:
+            with suppress(AttributeError):
                 getattr(self, name).__recursively_mark_all_fields_as_modified()
 
     def copy(
