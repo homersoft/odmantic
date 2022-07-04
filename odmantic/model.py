@@ -1,12 +1,12 @@
 import datetime
 import decimal
 import enum
+import functools
 import pathlib
 import uuid
 import warnings
 from abc import ABCMeta
 from collections.abc import Callable as abcCallable
-from contextlib import suppress
 from types import FunctionType
 from typing import (
     TYPE_CHECKING,
@@ -17,6 +17,7 @@ from typing import (
     FrozenSet,
     Iterable,
     List,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -459,6 +460,35 @@ class EmbeddedModelMetaclass(BaseModelMetaclass):
 
 
 BaseT = TypeVar("BaseT", bound="_BaseODMModel")
+TraversalStateT = NamedTuple("TraversalStateT", [("output", List[Any]), ("staging", List[Any])])
+
+def flat_tree(o: BaseT) -> List[BaseT]:
+    state = TraversalStateT(output=[], staging=[o])
+
+    def obj_fields(obj):
+        return [getattr(obj, name) for name in set(obj.__fields__)]
+
+    def unpack(acc: TraversalStateT, obj: Any) -> TraversalStateT:
+        output, (_, *staging_tail) = acc
+        if isinstance(obj, _BaseODMModel):
+            return TraversalStateT(
+                output + [obj],
+                staging_tail + obj_fields(obj)
+            )
+        elif isinstance(obj, Iterable) and not isinstance(obj, (str, dict)):
+            return TraversalStateT(
+                output,
+                staging_tail + [*obj]
+            )
+        else:
+            return TraversalStateT(
+                output,
+                staging_tail
+            )
+
+    while state.staging:
+        state = functools.reduce(unpack, state.staging, state)
+    return state.output
 
 
 class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
@@ -501,11 +531,8 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
         args = [id_arg] + args
         return args
 
-    def __recursively_mark_all_fields_as_modified(self: BaseT) -> None:
+    def __mark_all_fields_as_modified(self: BaseT) -> None:
         object.__setattr__(self, "__fields_modified__", set(self.__fields__))
-        for name in self.__fields__:
-            with suppress(AttributeError):
-                getattr(self, name).__recursively_mark_all_fields_as_modified()
 
     def copy(
         self: BaseT,
@@ -540,9 +567,11 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
         copied = super().copy(
             include=include, exclude=exclude, update=update, deep=deep  # type: ignore
         )
-        object.__setattr__(copied, "__fields_modified__", set(copied.__fields__))
         if deep:
-            copied.__recursively_mark_all_fields_as_modified()
+            for model in flat_tree(copied):
+                model.__mark_all_fields_as_modified()
+        else:
+            copied.__mark_all_fields_as_modified()
         return copied
 
     def update(
