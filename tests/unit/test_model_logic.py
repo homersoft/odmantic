@@ -454,6 +454,23 @@ def test_model_copy_embedded_models_fields_can_still_be_set_after_deep_copy():
 
     assert copied != instance
 
+@pytest.mark.parametrize("hint, ctor", [
+    pytest.param(List, list),
+    pytest.param(Tuple, tuple),
+])
+def test_model_copy_embedded_model_collection(hint, ctor):
+    class E(EmbeddedModel):
+        f: int
+
+    class M(Model):
+        e: hint[E]
+
+    instance = M(e=ctor([E(f=1)]))
+    copied = instance.copy(deep=True)
+    copied.e[0].f = 2
+
+    assert copied != instance
+
 
 INITIAL_FIRST_NAME, INITIAL_LAST_NAME = "INITIAL_FIRST_NAME", "INITIAL_LAST_NAME"
 UPDATED_NAME = "UPDATED_NAME"
