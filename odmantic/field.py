@@ -283,6 +283,8 @@ class FieldProxy:
         return f"{parent_name}.{field.key_name}"
 
     def __getattribute__(self, name: str) -> Any:
+        if name == "__hash__":  # support `hash`
+            return object.__getattribute__(self, "__hash__")
         if name == "__class__":  # support `isinstance` for python < 3.7
             return super().__getattribute__(name)
 
@@ -362,3 +364,6 @@ class FieldProxy:
 
     def desc(self) -> SortExpression:
         return desc(self)
+
+    def __hash__(self) -> int:
+        return hash(object.__getattribute__(self, "field"))
